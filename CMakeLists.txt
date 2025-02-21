@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(final final.c )
+add_executable(final final.c inc/ssd1306_i2c.c)
 
 pico_set_program_name(final "final")
 pico_set_program_version(final "0.1")
@@ -55,10 +55,8 @@ target_include_directories(final PRIVATE
 
 # Add any user requested libraries
 target_link_libraries(final
-    pico_stdlib
     hardware_adc # <=== Adicionado para suportar ADC
     hardware_i2c
 )
 
 pico_add_extra_outputs(final)
-
