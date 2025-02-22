@@ -26,7 +26,7 @@ const int BLUE_LED = 12; // LED azul para indicar o modo de contagem
 int contador = 0;
 int prev_contador = 0;
 bool exibir_hex = false;
-bool botao_anterior = true;
+bool botao_anterior = false;
 bool modo_simulacao = false;
 int porta_atual = 0;
 
@@ -46,6 +46,14 @@ const uint16_t LIMIAR_BAIXO_MIN = 1500;
 
 const uint16_t LIMIAR_ESQUERDA = 1000;
 const uint16_t LIMIAR_DIREITA = 3000;
+
+uint8_t ssd[ssd1306_buffer_length];
+struct render_area frame_area = {
+    start_column : 0,
+    end_column : ssd1306_width - 1,
+    start_page : 0,
+    end_page : ssd1306_n_pages - 1
+};
 
 void setup_joystick() {
     adc_init();
@@ -80,6 +88,29 @@ void setup() {
     gpio_init(BLUE_LED);
     gpio_set_dir(BLUE_LED, GPIO_OUT);
     gpio_put(BLUE_LED, 1); // Inicia com o azul ligado no modo contagem
+
+    // Inicialização do i2c
+    i2c_init(i2c1, ssd1306_i2c_clock * 1000);
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
+    gpio_pull_up(I2C_SDA);
+    gpio_pull_up(I2C_SCL);
+
+    // Processo de inicialização completo do OLED SSD1306
+    ssd1306_init();
+    calculate_render_area_buffer_length(&frame_area);
+    // zera o display inteiro
+    limpa_display();
+
+    restart:
+
+    char *text[] = {
+        "Contador DEC",
+        "Valor",
+        "0",
+    };
+
+    atualiza_display(text, 3);
 }
 
 void joystick_read_axis(uint16_t *eixo_x, uint16_t *eixo_y) {
@@ -107,55 +138,27 @@ void simular_porta_logica() {
     gpio_put(RED_LED, resultado == 0);
     gpio_put(GREEN_LED, resultado == 1);
     gpio_put(BLUE_LED, 0); // Azul sempre desligado no modo simulação
+}
 
-    printf("Porta: %s | Entrada A: %d | Entrada B: %d | Saída: %d\n", 
-           portas_logicas[porta_atual], entrada_a, entrada_b, resultado);
+void limpa_display(){
+    calculate_render_area_buffer_length(&frame_area);
+    memset(ssd, 0, ssd1306_buffer_length);
+    render_on_display(ssd, &frame_area);
+}
+
+void atualiza_display(char *update[], int size){
+    int y = 0;
+    for (uint i = 0; i < size; i++)
+    {
+        ssd1306_draw_string(ssd, 5, y, update[i]);
+        y += 8;
+    }
+    render_on_display(ssd, &frame_area);
 }
 
 int main() {
     uint16_t valor_x, valor_y;
     setup();
-
-    // Inicialização do i2c
-    i2c_init(i2c1, ssd1306_i2c_clock * 1000);
-    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
-    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
-    gpio_pull_up(I2C_SDA);
-    gpio_pull_up(I2C_SCL);
-
-    // Processo de inicialização completo do OLED SSD1306
-    ssd1306_init();
-
-    // Preparar área de renderização para o display (ssd1306_width pixels por ssd1306_n_pages páginas)
-    struct render_area frame_area = {
-        start_column : 0,
-        end_column : ssd1306_width - 1,
-        start_page : 0,
-        end_page : ssd1306_n_pages - 1
-    };
-
-    calculate_render_area_buffer_length(&frame_area);
-
-    // zera o display inteiro
-    uint8_t ssd[ssd1306_buffer_length];
-    memset(ssd, 0, ssd1306_buffer_length);
-    render_on_display(ssd, &frame_area);
-
-    restart:
-
-    char *text[] = {
-        "Contador",
-        "Base HEX",
-        "Valor"
-    };
-
-    int y = 0;
-    for (uint i = 0; i < count_of(text); i++)
-    {
-        ssd1306_draw_string(ssd, 5, y, text[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &frame_area);
 
     while (1) {
         joystick_read_axis(&valor_x, &valor_y);
@@ -181,6 +184,8 @@ int main() {
             }
 
             simular_porta_logica();
+
+            sleep_ms(200);
         } else {
             if (!gpio_get(BTN_A)) {
                 modo_simulacao = true;
@@ -194,42 +199,57 @@ int main() {
             else if (valor_y < LIMIAR_BAIXO_MED) contador -= 5;
             else if (valor_y < LIMIAR_BAIXO_MIN) contador -= 1;
 
+            // Garantido que o contador esteja no conjunto dos naturais
+            if(contador < 0)
+                contador = 0;
+
+            char valor[20];
+            char base[20];
             bool botao_atual = !gpio_get(SW);
+
             if (botao_anterior && !botao_atual) {
                 exibir_hex = !exibir_hex;
+
+                if (exibir_hex) {
+                    // Converting integer to string using sprintf
+                    sprintf(valor, "0x%X", contador);
+                    strcpy(base, "Contador HEX");
+                } else {
+                    sprintf(valor, "%d", contador);
+                    strcpy(base, "Contador DEC");
+                }
+
+                char *update[] = {
+                    base,
+                    "Valor",
+                    valor,
+                };
+
+                limpa_display();
+                atualiza_display(update, 3);  
             }
             botao_anterior = botao_atual;
 
             if (prev_contador != contador) {
                 prev_contador = contador;
+
                 if (exibir_hex) {
-                    printf("X: %d, Y: %d, Botao: %d, Contador: 0x%X\n", valor_x, valor_y, botao_atual, contador);
+                    // Converting integer to string using sprintf
+                    sprintf(valor, "0x%X", contador);
+                    strcpy(base, "Contador HEX");
                 } else {
-                    printf("X: %d, Y: %d, Botao: %d, Contador: %d\n", valor_x, valor_y, botao_atual, contador);
+                    sprintf(valor, "%d", contador);
+                    strcpy(base, "Contador DEC");
                 }
-
-                calculate_render_area_buffer_length(&frame_area);
-                memset(ssd, 0, ssd1306_buffer_length);
-                render_on_display(ssd, &frame_area);
-
-                char str[20];
-
-                // Converting integer to string using sprintf
-                sprintf(str, "%d", contador);
 
                 char *update[] = {
-                    "Contador",
+                    base,
                     "Valor",
-                    str,
+                    valor,
                 };
-            
-                int y = 0;
-                for (uint i = 0; i < count_of(update); i++)
-                {
-                    ssd1306_draw_string(ssd, 5, y, update[i]);
-                    y += 8;
-                }
-                render_on_display(ssd, &frame_area);            
+
+                limpa_display();
+                atualiza_display(update, 3);          
             }
 
             gpio_put(BLUE_LED, 1); // Mantém o azul ligado no modo contagem
