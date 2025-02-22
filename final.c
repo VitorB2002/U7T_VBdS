@@ -147,8 +147,24 @@ void limpa_display(){
 }
 
 void atualiza_display(char *update[], int size){
+    limpa_display();
     int y = 0;
     for (uint i = 0; i < size; i++)
+    {
+        ssd1306_draw_string(ssd, 5, y, update[i]);
+        y += 8;
+    }
+    render_on_display(ssd, &frame_area);
+}
+
+void atualiza_display_porta(int porta){
+    limpa_display();
+    char *update[] = {
+        "Simulando",
+        portas_logicas[porta],
+    };
+    int y = 0;
+    for (uint i = 0; i < 2; i++)
     {
         ssd1306_draw_string(ssd, 5, y, update[i]);
         y += 8;
@@ -166,10 +182,29 @@ int main() {
         if (modo_simulacao) {
             bool botao_atual = !gpio_get(SW);
             if (botao_anterior && !botao_atual) {
+                char base[20];
+                char valor[20];
+
+                if (exibir_hex) {
+                    sprintf(valor, "0x%X", contador);
+                    strcpy(base, "Contador HEX");
+                } else {
+                    sprintf(valor, "%d", contador);
+                    strcpy(base, "Contador DEC");
+                }
+
                 modo_simulacao = false;
                 gpio_put(RED_LED, 0);
                 gpio_put(GREEN_LED, 0);
                 gpio_put(BLUE_LED, 1); // Volta a indicar o modo de contagem
+
+                char *update[] = {
+                    base,
+                    "Valor",
+                    valor,
+                };
+
+                atualiza_display(update, 3);
             }
             botao_anterior = botao_atual;
 
@@ -178,9 +213,11 @@ int main() {
             if (valor_x > LIMIAR_DIREITA && (tempo_atual - ultima_mudanca > debounce_delay)) {
                 porta_atual = (porta_atual + 1) % num_portas;
                 ultima_mudanca = tempo_atual;
+                atualiza_display_porta(porta_atual);
             } else if (valor_x < LIMIAR_ESQUERDA && (tempo_atual - ultima_mudanca > debounce_delay)) {
                 porta_atual = (porta_atual - 1 + num_portas) % num_portas;
                 ultima_mudanca = tempo_atual;
+                atualiza_display_porta(porta_atual);
             }
 
             simular_porta_logica();
@@ -190,6 +227,7 @@ int main() {
             if (!gpio_get(BTN_A)) {
                 modo_simulacao = true;
                 gpio_put(BLUE_LED, 0); // Desliga o azul ao entrar no modo simulação
+                atualiza_display_porta(porta_atual);
             }
 
             if (valor_y > LIMIAR_CIMA_MAX) contador += 10;
@@ -225,7 +263,6 @@ int main() {
                     valor,
                 };
 
-                limpa_display();
                 atualiza_display(update, 3);  
             }
             botao_anterior = botao_atual;
@@ -248,7 +285,6 @@ int main() {
                     valor,
                 };
 
-                limpa_display();
                 atualiza_display(update, 3);          
             }
 
