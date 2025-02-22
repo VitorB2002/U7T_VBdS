@@ -229,6 +229,10 @@ int main() {
                 gpio_put(BLUE_LED, 0); // Desliga o azul ao entrar no modo simulação
                 atualiza_display_porta(porta_atual);
             }
+            
+            if(!gpio_get(BTN_B)) {
+                contador = 0;
+            }
 
             if (valor_y > LIMIAR_CIMA_MAX) contador += 10;
             else if (valor_y > LIMIAR_CIMA_MED) contador += 5;
