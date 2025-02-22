@@ -116,11 +116,11 @@ void setup() {
 void joystick_read_axis(uint16_t *eixo_x, uint16_t *eixo_y) {
     adc_select_input(0);
     sleep_us(2);
-    *eixo_x = adc_read();
+    *eixo_y = adc_read();
 
     adc_select_input(1);
     sleep_us(2);
-    *eixo_y = adc_read();
+    *eixo_x = adc_read();
 }
 
 void simular_porta_logica() {
@@ -253,7 +253,6 @@ int main() {
                 exibir_hex = !exibir_hex;
 
                 if (exibir_hex) {
-                    // Converting integer to string using sprintf
                     sprintf(valor, "0x%X", contador);
                     strcpy(base, "Contador HEX");
                 } else {
@@ -275,7 +274,6 @@ int main() {
                 prev_contador = contador;
 
                 if (exibir_hex) {
-                    // Converting integer to string using sprintf
                     sprintf(valor, "0x%X", contador);
                     strcpy(base, "Contador HEX");
                 } else {
